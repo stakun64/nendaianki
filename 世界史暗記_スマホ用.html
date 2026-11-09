@@ -1,0 +1,2731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>世界史 年代暗記アプリ</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#16a34a">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- SheetJS (xlsx reader) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+/* Custom App Styles - Minimal & Modern */
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mode Tab Styling (Minimal Pill) */
+.mode-tab {
+  color: #64748b;
+  background-color: transparent;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.dark .mode-tab {
+  color: #94a3b8;
+}
+.mode-tab:hover {
+  background-color: rgba(148, 163, 184, 0.08);
+}
+.mode-tab.active {
+  background-color: #0f172a;
+  color: #ffffff;
+}
+.dark .mode-tab.active {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Numpad touch feedback */
+.numpad-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.05s ease, background-color 0.1s ease;
+}
+.numpad-btn:active {
+  transform: scale(0.96);
+}
+
+/* Clean Input Styling */
+#answerInput {
+  font-feature-settings: "tnum";
+  letter-spacing: 0.1em;
+}
+
+</style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col font-sans select-none pb-24 sm:pb-8">
+
+  <!-- Header -->
+  <header class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-200/60 dark:border-slate-800/60">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <span class="text-xl">🏛️</span>
+        <h1 class="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+          世界史年代
+        </h1>
+        <span class="text-[11px] text-slate-400 font-mono" id="dataStatusText"></span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-1">
+        <button id="btnMobileQr" title="スマホ連携" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+        </button>
+
+        <button id="btnSettings" title="設定" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+        </button>
+
+        <button id="btnToggleTheme" title="テーマ" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+          <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+          <i data-lucide="sun" class="w-4 h-4 hidden dark:inline"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="max-w-2xl mx-auto px-4 pb-2.5 flex space-x-1.5 overflow-x-auto no-scrollbar text-xs font-medium">
+      <button class="mode-tab px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5" data-mode="all">
+        <span>全問</span>
+        <span id="badgeAllCount" class="text-[10px] opacity-75">0</span>
+      </button>
+
+      <button class="mode-tab px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5" data-mode="wrong">
+        <span>要復習</span>
+        <span id="badgeWrongCount" class="text-[10px] opacity-75">0</span>
+      </button>
+
+      <button class="mode-tab px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5" data-mode="starred">
+        <span>チェック</span>
+        <span id="badgeStarredCount" class="text-[10px] opacity-75">0</span>
+      </button>
+
+      <button class="mode-tab px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5" data-mode="list">
+        <span>一覧</span>
+      </button>
+    </div>
+  </header>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-2xl w-full mx-auto p-4 flex flex-col justify-start">
+
+    <!-- QUIZ VIEW -->
+    <div id="quizView" class="flex-1 flex flex-col">
+      <!-- Progress Bar & Stats -->
+      <div class="mb-4">
+        <div class="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <div class="flex items-center gap-2">
+            <span id="quizModeBadge" class="font-bold px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              全問モード
+            </span>
+            <span id="progressText">問題 1 / 10</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span id="scoreText">正答率: 0%</span>
+            <button id="btnRestartQuiz" title="最初からやり直す" class="hover:text-slate-800 dark:hover:text-slate-200">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+          <div id="progressBar" class="bg-emerald-500 h-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Main Question Card -->
+      <div id="questionCard" class="bg-white dark:bg-slate-800/90 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-slate-200/80 dark:border-slate-700/80 p-6 sm:p-8 flex flex-col relative transition-all duration-200">
+        <!-- Star Toggle Button -->
+        <button id="btnToggleStar" class="absolute top-5 right-5 p-2 text-slate-300 dark:text-slate-600 hover:text-amber-400 dark:hover:text-amber-400 transition rounded-full hover:bg-slate-100 dark:hover:bg-slate-700/50" title="チェック">
+          <i data-lucide="star" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Question Text -->
+        <div id="questionContent" class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight text-center my-6 min-h-[4.5rem] flex items-center justify-center leading-relaxed">
+          読み込み中...
+        </div>
+
+        <!-- Answer Input Area (During Question) -->
+        <div id="inputSection" class="mt-2 flex flex-col items-center">
+          <div class="w-full max-w-xs relative mb-4">
+            <input type="text" id="answerInput" inputmode="numeric"
+              autocomplete="off" autocorrect="off" spellcheck="false"
+              class="w-full text-center text-3xl font-bold tracking-widest py-3 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-900 dark:text-white focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:bg-white dark:focus:bg-slate-900 transition-all shadow-inner">
+            <button id="btnInputClear" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 dark:hover:text-slate-200 p-1">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-3 w-full max-w-xs">
+            <button id="btnPassAnswer" class="flex-1 py-2.5 px-4 text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition">
+              パス
+            </button>
+            <button id="btnSubmitAnswer" class="flex-1 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-xl shadow-sm transition active:scale-95">
+              判定
+            </button>
+          </div>
+        </div>
+
+        <!-- Result & Explanation Area (After Answering) -->
+        <div id="resultSection" class="hidden mt-2 pt-4 border-t border-slate-100 dark:border-slate-700/60 animate-fadeIn space-y-3">
+          <!-- Judgment & Year Display -->
+          <div id="resultBanner" class="p-4 rounded-2xl flex items-center justify-between transition-all">
+            <div class="flex items-baseline gap-3">
+              <span id="resultIcon" class="text-xl">⭕</span>
+              <div class="flex items-baseline gap-1.5">
+                <span id="resultTargetYear" class="text-3xl sm:text-4xl font-extrabold tracking-tight">220</span>
+                <span class="text-sm font-semibold opacity-80">年</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="userAnswerComparison" class="text-xs"></span>
+              <div id="clearedBadge" class="hidden text-[11px] bg-white/90 dark:bg-slate-900/90 px-2 py-0.5 rounded-full font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                克服
+              </div>
+            </div>
+          </div>
+
+          <!-- Mnemonic Box -->
+          <div class="bg-amber-500/[0.08] dark:bg-amber-500/[0.12] border border-amber-500/20 rounded-2xl p-4">
+            <div class="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i>
+              <span>語呂合わせ</span>
+            </div>
+            <div id="resultGoro" class="text-base sm:text-lg font-bold text-amber-950 dark:text-amber-100 tracking-wide leading-snug">
+              夫婦お別れ漢滅ぶ
+            </div>
+          </div>
+
+          <!-- Detail Box (スタイリッシュ＆見やすいデザイン) -->
+          <div class="bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
+            <div class="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
+              <span>POINT / 解説</span>
+            </div>
+            <div id="resultDetail" class="text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-relaxed space-y-1">
+              曹丕が魏を立てる　三国時代
+            </div>
+          </div>
+
+          <!-- Next Button -->
+          <button id="btnNextQuestion" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-2xl shadow-sm transition active:scale-98 flex items-center justify-center gap-2 text-sm mt-3">
+            <span>次へ進む</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Finished Card (スタイリッシュな終了画面) -->
+      <div id="finishedCard" class="hidden bg-white dark:bg-slate-800/90 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-slate-200/80 dark:border-slate-700/80 p-8 text-center my-auto">
+        <div class="text-4xl mb-3" id="finishedIcon">🎉</div>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-1" id="finishedTitle">学習完了</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 font-medium" id="finishedDesc">
+          正答率 0%
+        </p>
+
+        <div class="grid grid-cols-3 gap-2.5 max-w-xs mx-auto mb-6 text-center">
+          <div class="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <div class="text-[10px] font-medium text-slate-400 mb-0.5">問題数</div>
+            <div id="finishedTotal" class="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">0</div>
+          </div>
+          <div class="p-3 bg-emerald-500/[0.08] dark:bg-emerald-500/[0.12] rounded-2xl border border-emerald-500/20">
+            <div class="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-0.5">正解</div>
+            <div id="finishedCorrect" class="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">0</div>
+          </div>
+          <div class="p-3 bg-rose-500/[0.08] dark:bg-rose-500/[0.12] rounded-2xl border border-rose-500/20">
+            <div class="text-[10px] font-medium text-rose-500 dark:text-rose-400 mb-0.5">不正解</div>
+            <div id="finishedWrong" class="text-lg sm:text-xl font-bold text-rose-500 dark:text-rose-400">0</div>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 justify-center max-w-xs mx-auto">
+          <button id="btnRestartFromFinished" class="w-full py-2.5 px-5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold rounded-xl transition shadow-sm">
+            もう一度解く
+          </button>
+          <button id="btnSwitchToWrongMode" class="hidden w-full py-2.5 px-5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold rounded-xl border border-rose-500/20 transition">
+            間違えた問題を特訓
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIST / DICTIONARY VIEW -->
+    <div id="listView" class="hidden flex-1 flex flex-col">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 mb-4">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="listSearchInput" placeholder="年号・出来事・語呂合わせを検索..."
+              class="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:border-emerald-500">
+          </div>
+          <button id="btnReloadExcel" title="Excelを再読み込み" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-xs font-semibold rounded-lg transition flex items-center gap-1">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>更新</span>
+          </button>
+        </div>
+
+        <div class="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center">
+          <span id="listCountText">全 0 件</span>
+          <span>★をタップしてチェック切り替え</span>
+        </div>
+      </div>
+
+      <!-- List Items Container -->
+      <div id="listContainer" class="space-y-3 pb-8">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Mobile On-Screen Numpad -->
+  <div id="mobileNumpad" class="sm:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-800/60 p-2.5 z-20 shadow-lg">
+    <div class="max-w-xs mx-auto grid grid-cols-4 gap-1.5 text-base font-semibold">
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="1">1</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="2">2</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="3">3</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-slate-200 rounded-xl text-sm" data-action="backspace">⌫</button>
+
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="4">4</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="5">5</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="6">6</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs text-slate-500 dark:text-slate-400" data-action="bc">前</button>
+
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="7">7</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="8">8</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white" data-val="9">9</button>
+      <button class="numpad-btn p-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl row-span-2 flex items-center justify-center font-bold text-xs shadow-sm" data-action="submit">
+        判定
+      </button>
+
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-800 dark:text-white col-span-2" data-val="0">0</button>
+      <button class="numpad-btn p-3 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-400 text-xs" data-action="clear">C</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <i data-lucide="sliders-horizontal" class="w-5 h-5 text-emerald-600"></i>
+          出題設定・絞り込み
+        </h3>
+        <button class="modal-close p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-5 text-sm">
+        <!-- Range Filter -->
+        <div>
+          <label class="block font-semibold mb-1 text-slate-800 dark:text-slate-200">
+            年代の出題範囲
+          </label>
+          <div class="flex items-center gap-2 mb-2">
+            <input type="number" id="settingYearMin" placeholder="開始年 (例: -500)"
+              class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-600 text-center">
+            <span class="text-slate-400">〜</span>
+            <input type="number" id="settingYearMax" placeholder="終了年 (例: 2000)"
+              class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-slate-600 text-center">
+          </div>
+          <!-- Quick Presets -->
+          <div class="grid grid-cols-3 gap-1.5 text-xs">
+            <button class="preset-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" data-min="-3000" data-max="3000">全期間</button>
+            <button class="preset-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" data-min="-3000" data-max="500">古代 (~500)</button>
+            <button class="preset-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" data-min="500" data-max="1500">中世 (500~1500)</button>
+            <button class="preset-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" data-min="1500" data-max="1800">近世 (1500~1800)</button>
+            <button class="preset-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200" data-min="1800" data-max="3000">近現代 (1800~)</button>
+          </div>
+        </div>
+
+        <!-- Sort Order -->
+        <div>
+          <label class="block font-semibold mb-1 text-slate-800 dark:text-slate-200">出題順</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+              <input type="radio" name="sortOrder" value="random" checked class="text-emerald-600 focus:ring-emerald-500">
+              <span>🎲 ランダム</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+              <input type="radio" name="sortOrder" value="year_asc" class="text-emerald-600 focus:ring-emerald-500">
+              <span>⬆️ 年代順 (古い順)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+              <input type="radio" name="sortOrder" value="year_desc" class="text-emerald-600 focus:ring-emerald-500">
+              <span>⬇️ 年代順 (新しい順)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+              <input type="radio" name="sortOrder" value="original" class="text-emerald-600 focus:ring-emerald-500">
+              <span>📋 Excel登録順</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Sound & Feedback -->
+        <div>
+          <label class="flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+            <span class="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <i data-lucide="volume-2" class="w-4 h-4 text-emerald-600"></i>
+              正誤判定の効果音
+            </span>
+            <input type="checkbox" id="settingSound" checked class="w-4 h-4 text-emerald-600 rounded">
+          </label>
+        </div>
+
+        <!-- Excel Manual Load (For Standalone / Mobile File Picker) -->
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-700">
+          <label class="block font-semibold mb-1 text-slate-800 dark:text-slate-200">
+            Excelファイルの手動読込 (外出先や直接読込)
+          </label>
+          <p class="text-xs text-slate-500 mb-2">
+            PCがオフでも、スマホの「ファイル」やGoogle Drive等から <code class="text-xs bg-slate-100 dark:bg-slate-700 px-1 py-0.5 rounded">世界史年号.xlsx</code> を読み込めます。
+          </p>
+          <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 dark:file:bg-emerald-950 dark:file:text-emerald-300">
+        </div>
+
+        <!-- Data Reset Buttons -->
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+          <button id="btnResetWrongList" class="flex-1 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition">
+            間違えた履歴をリセット
+          </button>
+          <button id="btnResetStarredList" class="flex-1 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-900 transition">
+            チェックを全解除
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <button id="btnSaveSettings" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow">
+          設定を保存して閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE QR CONNECT MODAL -->
+  <div id="mobileModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 text-center">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <i data-lucide="smartphone" class="w-5 h-5 text-emerald-600"></i>
+          スマホで学習する
+        </h3>
+        <button class="modal-close p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600 dark:text-slate-300 mb-4">
+        PCと同じWi-Fiにスマホを接続し、カメラで以下のQRコードを読み取ってください。
+      </p>
+
+      <!-- QR Code Canvas Container -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-inner flex items-center justify-center mx-auto w-52 h-52 mb-4" id="qrContainer">
+        <!-- QR is injected here -->
+      </div>
+
+      <!-- Connection URL -->
+      <div class="bg-slate-100 dark:bg-slate-900 p-2.5 rounded-xl flex items-center justify-between text-xs font-mono mb-4">
+        <span id="mobileUrlText" class="truncate text-slate-600 dark:text-slate-300">http://...</span>
+        <button id="btnCopyMobileUrl" class="text-slate-900 dark:text-white font-bold ml-2 hover:underline">
+          コピー
+        </button>
+      </div>
+
+      <!-- Outside Home Download Action -->
+      <div class="space-y-2 mb-2 text-left">
+        <a id="btnDownloadStandalone" href="/download/standalone" download="世界史暗記.html"
+          class="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>外出用ファイル（オフライン版）を保存</span>
+        </a>
+      </div>
+
+      <!-- Outside Home Guide -->
+      <div class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-left bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 space-y-1">
+        <div class="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+          <i data-lucide="train" class="w-3.5 h-3.5"></i>
+          <span>家の外（Wi-Fiなし）で使う方法</span>
+        </div>
+        <p>
+          上のボタンから保存した <strong>「世界史暗記.html」</strong> をスマホのファイルアプリから開けば、Wi-Fiを切っても、通信なしでどこでも100%サクサク動きます！
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+// ==========================================
+// 世界史 年代暗記アプリ - フロントエンドスクリプト
+// ==========================================
+
+// 初期フォールバックデータ (サーバー未接続時用)
+const DEFAULT_ITEMS = [
+  {
+    "id": 1,
+    "year": "220",
+    "year_num": 220,
+    "content": "後漢の滅亡",
+    "goro": "夫婦お別れ漢滅ぶ",
+    "detail": "曹丕が魏を立てる　三国時代"
+  },
+  {
+    "id": 2,
+    "year": "226",
+    "year_num": 226,
+    "content": "ササン朝ペルシアの成立",
+    "goro": "夫婦むつまじササン朝",
+    "detail": "アルダシール1世　パルティアを倒す"
+  },
+  {
+    "id": 3,
+    "year": "313",
+    "year_num": 313,
+    "content": "ミラノ勅令",
+    "goro": "再三迫害したのち公認す",
+    "detail": "コンスタンティヌス帝　キリスト教公認"
+  },
+  {
+    "id": 4,
+    "year": "375",
+    "year_num": 375,
+    "content": "ゲルマン人の大移動",
+    "goro": "みんなGo！",
+    "detail": "フン人の圧迫による"
+  },
+  {
+    "id": 5,
+    "year": "395",
+    "year_num": 395,
+    "content": "ローマ帝国、東西に分裂",
+    "goro": "錯誤にローマ二分され",
+    "detail": "テオドシウス帝の死後"
+  },
+  {
+    "id": 6,
+    "year": "476",
+    "year_num": 476,
+    "content": "西ローマ帝国の滅亡",
+    "goro": "死なむと嘆く西ローマ",
+    "detail": "ゲルマン人傭兵隊長オドアケルによる"
+  },
+  {
+    "id": 7,
+    "year": "481",
+    "year_num": 481,
+    "content": "フランク王国の成立",
+    "goro": "世は始まるとクローヴィス",
+    "detail": "メロヴィング朝　アタナシウス派キリスト教に改宗"
+  },
+  {
+    "id": 8,
+    "year": "527",
+    "year_num": 527,
+    "content": "ユスティニアヌス即位",
+    "goro": "いつにないご機嫌で即位する",
+    "detail": "最盛期　ヴァンダル王国、東ゴート王国を滅ぼす"
+  },
+  {
+    "id": 9,
+    "year": "589",
+    "year_num": 589,
+    "content": "隋の中国統一",
+    "goro": "公約果たして国まとめ",
+    "detail": "文帝（楊堅）　科挙制"
+  },
+  {
+    "id": 10,
+    "year": "618",
+    "year_num": 618,
+    "content": "唐の成立",
+    "goro": "浪費屋の煬帝殺され唐起こる",
+    "detail": "李淵が建国　都長安"
+  },
+  {
+    "id": 11,
+    "year": "661",
+    "year_num": 661,
+    "content": "ウマイヤ朝の成立",
+    "goro": "ロクロクいけぬウマイヤ朝",
+    "detail": "アリー暗殺後、ムアーウィヤが開く　首都ダマスクス"
+  },
+  {
+    "id": 12,
+    "year": "676",
+    "year_num": 676,
+    "content": "新羅の朝鮮統一",
+    "goro": "無難、労なく新羅の統一",
+    "detail": "唐と結んで百済、高句麗を倒す"
+  },
+  {
+    "id": 13,
+    "year": "726",
+    "year_num": 726,
+    "content": "聖像禁止令",
+    "goro": "なじむ聖像こわさせる",
+    "detail": "ビザンツ皇帝レオン３世　ローマ教皇との対立が深まる"
+  },
+  {
+    "id": 14,
+    "year": "732",
+    "year_num": 732,
+    "content": "トゥールポワティエ間の戦い",
+    "goro": "並みには勝てぬ、トゥール間",
+    "detail": "フランク王国カールマルテル　ウマイヤ朝の侵入を撃退"
+  },
+  {
+    "id": 15,
+    "year": "750",
+    "year_num": 750,
+    "content": "アッバース朝成立",
+    "goro": "難航を恐れずアッバース船出する",
+    "detail": "ウマイヤ朝を倒す　首都バグダード　最盛期ハールーンアッラシード"
+  },
+  {
+    "id": 16,
+    "year": "751",
+    "year_num": 751,
+    "content": "タラス河畔の戦い",
+    "goro": "ない人に教える紙の作り方",
+    "detail": "唐軍を破る　製紙法西伝"
+  },
+  {
+    "id": 17,
+    "year": "755",
+    "year_num": 755,
+    "content": "安史の乱",
+    "goro": "おなご殺しの安禄山",
+    "detail": "玄奘の治世　安禄山と史思明　ウイグルの援助で鎮圧"
+  },
+  {
+    "id": 18,
+    "year": "800",
+    "year_num": 800,
+    "content": "カール大帝の戴冠",
+    "goro": "晴れて王冠、カール帝",
+    "detail": "教皇レオ３世からローマ皇帝の帝冠を授かる"
+  },
+  {
+    "id": 19,
+    "year": "875",
+    "year_num": 875,
+    "content": "黄巣の乱",
+    "goro": "やなこと始まる黄巣の乱",
+    "detail": "唐が衰える"
+  },
+  {
+    "id": 20,
+    "year": "907",
+    "year_num": 907,
+    "content": "唐の滅亡",
+    "goro": "苦をなくしてよと唐滅ぶ",
+    "detail": "節度使の朱全忠"
+  },
+  {
+    "id": 21,
+    "year": "918",
+    "year_num": 918,
+    "content": "高麗の建国",
+    "goro": "悔いは残さぬ高麗の建国",
+    "detail": "王建が建国　新羅を滅ぼす　都開城"
+  },
+  {
+    "id": 22,
+    "year": "960",
+    "year_num": 960,
+    "content": "北宋の成立",
+    "goro": "苦労を覚悟で宋を立て",
+    "detail": "趙匡胤が建国　都開封"
+  },
+  {
+    "id": 23,
+    "year": "962",
+    "year_num": 962,
+    "content": "オットー大帝の戴冠",
+    "goro": "苦労人のオットー大帝",
+    "detail": "ドイツ統一　神聖ローマ帝国"
+  },
+  {
+    "id": 24,
+    "year": "1010",
+    "year_num": 1010,
+    "content": "李朝大越国の建国",
+    "goro": "とうとう建国、李朝大越",
+    "detail": "南部にはチャンパーが繁栄"
+  },
+  {
+    "id": 25,
+    "year": "1055",
+    "year_num": 1055,
+    "content": "セルジューク朝のバグダード入城",
+    "goro": "人は午後、バグダードに入城だ",
+    "detail": "ブワイフ朝を倒す　カリフからスルタンの称号授けられる"
+  },
+  {
+    "id": 26,
+    "year": "1066",
+    "year_num": 1066,
+    "content": "ノルマンのイギリス征服",
+    "goro": "入れろ無理やりブリテンに",
+    "detail": "ノルマンディー公ウィリアム"
+  },
+  {
+    "id": 27,
+    "year": "1077",
+    "year_num": 1077,
+    "content": "カノッサの屈辱",
+    "goro": "異例な難儀、カノッサで",
+    "detail": "叙任権闘争　皇帝ハインリヒ４世が教皇グレゴリウス７世に謝罪"
+  },
+  {
+    "id": 28,
+    "year": "1095",
+    "year_num": 1095,
+    "content": "クレルモン宗教会議",
+    "goro": "一令糾合クレルモン",
+    "detail": "教皇ウルバヌス２世　十字軍の派遣を提唱"
+  },
+  {
+    "id": 29,
+    "year": "1204",
+    "year_num": 1204,
+    "content": "ラテン帝国の成立",
+    "goro": "人にお知らせラテン帝国",
+    "detail": "第４回十字軍（インノケンティウス３世提唱）　ヴェネチア商人の要求　コンスタンティノープルを占領"
+  },
+  {
+    "id": 30,
+    "year": "1206",
+    "year_num": 1206,
+    "content": "チンギスハンの即位",
+    "goro": "一に霊夢のチンギスハン",
+    "detail": "テムジンがクリルタイでチンギスハンの称号を得る　チオグモフ、プルマモイ"
+  },
+  {
+    "id": 31,
+    "year": "1215",
+    "year_num": 1215,
+    "content": "マグナカルタの発布",
+    "goro": "人に一言大憲章",
+    "detail": "ジョン王の失政　仏王フィリップ２世に敗れ、領土を失う"
+  },
+  {
+    "id": 32,
+    "year": "1225",
+    "year_num": 1225,
+    "content": "陳朝の成立",
+    "goro": "人にニコニコ、陳朝笑う",
+    "detail": "チュノムの作成"
+  },
+  {
+    "id": 33,
+    "year": "1241",
+    "year_num": 1241,
+    "content": "ワールシュタットの戦い",
+    "goro": "日に良い元気蒙古軍",
+    "detail": "バトゥの西往軍　独、ポーランド連合軍を破る"
+  },
+  {
+    "id": 34,
+    "year": "1279",
+    "year_num": 1279,
+    "content": "南宋の滅亡",
+    "goro": "日に泣く恨み宋滅ぶ",
+    "detail": "フビライハン"
+  },
+  {
+    "id": 35,
+    "year": "1303",
+    "year_num": 1303,
+    "content": "アナーニ事件",
+    "goro": "穴に落ちた悲惨なおっさん",
+    "detail": "聖職者課税問題　ボニファティウス８世　仏王フィリップ４世　ボニ８憤死"
+  },
+  {
+    "id": 36,
+    "year": "1339",
+    "year_num": 1339,
+    "content": "百年戦争開始",
+    "goro": "百年間散々苦しむ英仏の民",
+    "detail": "ジャンヌダルクで仏、形勢逆転"
+  },
+  {
+    "id": 37,
+    "year": "1368",
+    "year_num": 1368,
+    "content": "明の成立",
+    "goro": "勇むや明の朱元璋",
+    "detail": "都南京"
+  },
+  {
+    "id": 38,
+    "year": "1370",
+    "year_num": 1370,
+    "content": "ティムール朝の成立",
+    "goro": "人の見なおすティムール朝",
+    "detail": "都サマルカンド"
+  },
+  {
+    "id": 39,
+    "year": "1392",
+    "year_num": 1392,
+    "content": "李氏朝鮮の成立",
+    "goro": "いざ国立てん李成桂",
+    "detail": "高麗を倒す"
+  },
+  {
+    "id": 40,
+    "year": "1414",
+    "year_num": 1414,
+    "content": "コンスタンツ公会議",
+    "goro": "いよいよはじまる公会議",
+    "detail": "フスを火刑に　教会大分裂を終わらせる"
+  },
+  {
+    "id": 41,
+    "year": "1453",
+    "year_num": 1453,
+    "content": "ビザンツ帝国の滅亡",
+    "goro": "一死ござるとビザンツ滅ぶ",
+    "detail": "オスマン帝国メフメト２世　コンスタンティノープルに遷都してイスタンブルと改称"
+  },
+  {
+    "id": 42,
+    "year": "1492",
+    "year_num": 1492,
+    "content": "グラナダ陥落",
+    "goro": "",
+    "detail": "ナスル朝　レコンキスタ完了"
+  },
+  {
+    "id": 43,
+    "year": "1501",
+    "year_num": 1501,
+    "content": "サファヴィー朝の成立",
+    "goro": "以後はいい国サファヴィー朝",
+    "detail": "ティムール帝国滅亡後　イスマーイール１世　シーア派"
+  },
+  {
+    "id": 44,
+    "year": "1517",
+    "year_num": 1517,
+    "content": "九十五か条の論題",
+    "goro": "一語否とルター言い",
+    "detail": "レオ１０世の贖宥状販売を批判　「キリスト者の自由」"
+  },
+  {
+    "id": 45,
+    "year": "1526",
+    "year_num": 1526,
+    "content": "ムガル帝国の成立",
+    "goro": "以後踏むなムガル帝国強い国",
+    "detail": "ティムールの子孫バーブル　ロディー朝を倒す"
+  },
+  {
+    "id": 46,
+    "year": "1534",
+    "year_num": 1534,
+    "content": "イギリス国教会成立",
+    "goro": "以後見よと教皇にらむ英国王",
+    "detail": "ヘンリ８世離婚問題"
+  },
+  {
+    "id": 47,
+    "year": "1545",
+    "year_num": 1545,
+    "content": "トリエント公会議",
+    "goro": "以後しごかれる新教徒",
+    "detail": "カール５世　教皇至上権　宗教裁判"
+  },
+  {
+    "id": 48,
+    "year": "1555",
+    "year_num": 1555,
+    "content": "アウクスブルクの和議",
+    "goro": "以後ごうごうとなるドイツ",
+    "detail": "ルター派公認　個人の信仰の自由は認められない"
+  },
+  {
+    "id": 49,
+    "year": "1571",
+    "year_num": 1571,
+    "content": "レパントの海戦",
+    "goro": "以後泣いたレパント海戦トルコ軍",
+    "detail": "スペイン王フェリペ２世がオスマン帝国の艦隊を破る"
+  },
+  {
+    "id": 50,
+    "year": "1581",
+    "year_num": 1581,
+    "content": "ネーデルラント連邦共和国の成立",
+    "goro": "以後はひとり立つ共和国",
+    "detail": "北部７州　ユトレヒト同盟"
+  },
+  {
+    "id": 51,
+    "year": "1588",
+    "year_num": 1588,
+    "content": "英、無敵艦隊を撃破",
+    "goro": "以後はばきかす英海軍",
+    "detail": "エリザベス１世"
+  },
+  {
+    "id": 52,
+    "year": "1598",
+    "year_num": 1598,
+    "content": "ナントの勅令",
+    "goro": "以後悔しナントの勅令発布さる",
+    "detail": "アンリ４世　ユグノーに個人の信仰の自由、権利を認める　1685ルイ１４世ナントの勅令廃止"
+  },
+  {
+    "id": 53,
+    "year": "1600",
+    "year_num": 1600,
+    "content": "英、東インド会社設立",
+    "goro": "一路おおしくインドに向かう",
+    "detail": "エリザベス１世　次いで蘭、仏も設立"
+  },
+  {
+    "id": 54,
+    "year": "1613",
+    "year_num": 1613,
+    "content": "ロマノフ朝成立",
+    "goro": "広い道行くロマノフ朝",
+    "detail": "ミハエルロマノフ"
+  },
+  {
+    "id": 55,
+    "year": "1623",
+    "year_num": 1623,
+    "content": "アンボイナ事件",
+    "goro": "イギリスの人無にされるアンボイナ",
+    "detail": "蘭に敗れ、インド進出"
+  },
+  {
+    "id": 56,
+    "year": "1642",
+    "year_num": 1642,
+    "content": "ピューリタン革命",
+    "goro": "異論世に満ち内乱起こる",
+    "detail": "チャールズ１世ばいばい"
+  },
+  {
+    "id": 57,
+    "year": "1648",
+    "year_num": 1648,
+    "content": "ウェストファリア条約",
+    "goro": "疲労弱って戦やめ",
+    "detail": "三十年戦争終結　スイス、オランダの独立が正式に認められる　仏はアルザスロレーヌを獲得"
+  },
+  {
+    "id": 58,
+    "year": "1651",
+    "year_num": 1651,
+    "content": "航海法発布",
+    "goro": "一路強引航海法発布する",
+    "detail": "クロムウェル　オランダ船をイギリスから排除→イギリスオランダ戦争"
+  },
+  {
+    "id": 59,
+    "year": "1688",
+    "year_num": 1688,
+    "content": "名誉革命",
+    "goro": "一路はばたき革命おこす",
+    "detail": "ジェームズ２世ばいばい　メアリ２世とウィリアム３世　権利の宣言、権利の章典"
+  },
+  {
+    "id": 60,
+    "year": "1689",
+    "year_num": 1689,
+    "content": "ネルチンスク条約",
+    "goro": "一路躍進シベリアへ",
+    "detail": "康熙帝、ピョートル大帝　アルグン川と外興安嶺を国境とする"
+  },
+  {
+    "id": 61,
+    "year": "1701",
+    "year_num": 1701,
+    "content": "スペイン継承戦争",
+    "goro": "一難を人は恐れず出征す",
+    "detail": "ルイ１４世の孫フェリペ５世　北米でアン女王戦争"
+  },
+  {
+    "id": 62,
+    "year": "1713",
+    "year_num": 1713,
+    "content": "ユトレヒト条約",
+    "goro": "異な人さわぐユトレヒト",
+    "detail": "スペイン継承戦争の講和条約　スペインブルボン家の承認　西→英：ジブラルタル、ミノルカ島　仏→英：アカディア、ハドソン湾、ニューファンドランド"
+  },
+  {
+    "id": 63,
+    "year": "1727",
+    "year_num": 1727,
+    "content": "キャフタ条約",
+    "goro": "一難になって国境規定",
+    "detail": "清：雍正帝　モンゴル北辺の国境を定める"
+  },
+  {
+    "id": 64,
+    "year": "1740",
+    "year_num": 1740,
+    "content": "オーストリア継承戦争",
+    "goro": "一難知れと女王いい",
+    "detail": "墺マリアテレジア、普フリードリヒ２世　北米でジョージ王戦争"
+  },
+  {
+    "id": 65,
+    "year": "1756",
+    "year_num": 1756,
+    "content": "七年戦争",
+    "goro": "否ご無理です七年戦",
+    "detail": "マリアテレジアシュレジエン奪還をめざす　外交革命（墺が仏と同盟）"
+  },
+  {
+    "id": 66,
+    "year": "1757",
+    "year_num": 1757,
+    "content": "プラッシーの戦い",
+    "goro": "いなごなくなるプラッシー",
+    "detail": "英東インド会社が仏とベンガル諸侯連合軍を破る　クライウ゛"
+  },
+  {
+    "id": 67,
+    "year": "1776",
+    "year_num": 1776,
+    "content": "アメリカ独立宣言",
+    "goro": "ひとつ名になろうと独立宣言す",
+    "detail": "トマスジェファソン"
+  },
+  {
+    "id": 68,
+    "year": "1789",
+    "year_num": 1789,
+    "content": "バスティーユ牢獄襲撃事件",
+    "goro": "非難爆発革命起こる",
+    "detail": "ルイ１６世"
+  },
+  {
+    "id": 69,
+    "year": "1794",
+    "year_num": 1794,
+    "content": "テルミドール９日のクーデター",
+    "goro": "人泣くよロベスピエール処刑さる",
+    "detail": "国民公会期　恐怖政治"
+  },
+  {
+    "id": 70,
+    "year": "1804",
+    "year_num": 1804,
+    "content": "ナポレオンの皇帝即位",
+    "goro": "いばれよ皇帝ナポレオン",
+    "detail": "第一帝政"
+  },
+  {
+    "id": 71,
+    "year": "1814",
+    "year_num": 1814,
+    "content": "ウィーン会議",
+    "goro": "祝い夜までウィーンの会議",
+    "detail": "墺メッテルニヒ　仏タレーランの正統主義の原則"
+  },
+  {
+    "id": 72,
+    "year": "1823",
+    "year_num": 1823,
+    "content": "モンロー宣言",
+    "goro": "いやに細工がきくモンロー",
+    "detail": "米大陸とヨーロッパの相互不干渉"
+  },
+  {
+    "id": 73,
+    "year": "1830",
+    "year_num": 1830,
+    "content": "七月革命",
+    "goro": "人は去れパリは七月革命だ",
+    "detail": "シャルル１０世ばいばい　ルイフィリップの七月王政"
+  },
+  {
+    "id": 74,
+    "year": "1840",
+    "year_num": 1840,
+    "content": "アヘン戦争",
+    "goro": "一夜指令でアヘン戦",
+    "detail": "林則徐アヘンを没収廃棄　1842南京条約：香港島の割譲、５港の開港"
+  },
+  {
+    "id": 75,
+    "year": "1848",
+    "year_num": 1848,
+    "content": "二月革命",
+    "goro": "威は弱る二月革命王亡命",
+    "detail": "ルイフィリップの七月王政が倒れ、第二共和政の成立"
+  },
+  {
+    "id": 76,
+    "year": "1852",
+    "year_num": 1852,
+    "content": "ナポレオン３世の即位",
+    "goro": "人は誤認して即位させ",
+    "detail": "第二帝政"
+  },
+  {
+    "id": 77,
+    "year": "1853",
+    "year_num": 1853,
+    "content": "クリミア戦争",
+    "goro": "一発誤算のクリミア戦",
+    "detail": "ロシアがトルコに敗れる　パリ条約国会中立化"
+  },
+  {
+    "id": 78,
+    "year": "1856",
+    "year_num": 1856,
+    "content": "アロー戦争",
+    "goro": "人はごろつきアロー号",
+    "detail": "1858天津条約→1860北京条約"
+  },
+  {
+    "id": 79,
+    "year": "1857",
+    "year_num": 1857,
+    "content": "シパーヒーの乱",
+    "goro": "一発ご難のシパーヒー",
+    "detail": "東インド会社のインド人傭兵"
+  },
+  {
+    "id": 80,
+    "year": "1858",
+    "year_num": 1858,
+    "content": "アイグン条約",
+    "goro": "人はいやいや領土の割譲",
+    "detail": "アムール川以北を露に割譲、北京条約で沿海州獲得、ウラジオストク建設"
+  },
+  {
+    "id": 81,
+    "year": "1861",
+    "year_num": 1861,
+    "content": "露、農奴解放令",
+    "goro": "ひとつやろう、いざ農奴の解放",
+    "detail": "アレクサンドル２世"
+  },
+  {
+    "id": 82,
+    "year": "1863",
+    "year_num": 1863,
+    "content": "奴隷解放宣言",
+    "goro": "人は無惨な差別やめ",
+    "detail": "南北戦争中　リンカン"
+  },
+  {
+    "id": 83,
+    "year": "1871",
+    "year_num": 1871,
+    "content": "ドイツ帝国の成立",
+    "goro": "人は泣いて喜ぶドイツ国",
+    "detail": "ヴィルヘルム１世がヴェルサイユ宮殿で即位"
+  },
+  {
+    "id": 84,
+    "year": "1877",
+    "year_num": 1877,
+    "content": "ロシアトルコ戦争",
+    "goro": "いやならなぐれ露土戦争",
+    "detail": "クリミア戦争の雪辱戦、勝利　サンステファノ条約でルーマニア、セルビア、モンテネグロの独立、ブルガリアの保護国化"
+  },
+  {
+    "id": 85,
+    "year": "1878",
+    "year_num": 1878,
+    "content": "ベルリン会議",
+    "goro": "いやな奴だよビスマルク",
+    "detail": "ブルガリアはトルコの自治国に"
+  },
+  {
+    "id": 86,
+    "year": "1882",
+    "year_num": 1882,
+    "content": "三国同盟の成立",
+    "goro": "人ははにかみ同盟作る",
+    "detail": "独墺伊　仏のチュニジア占領がきっかけ"
+  },
+  {
+    "id": 87,
+    "year": "1891",
+    "year_num": 1891,
+    "content": "露仏同盟",
+    "goro": "飛躍一番露仏合う",
+    "detail": "独ヴィルヘルム２世、再保障条約更新拒否"
+  },
+  {
+    "id": 88,
+    "year": "1894",
+    "year_num": 1894,
+    "content": "日清戦争",
+    "goro": "一躍清を踏み破る",
+    "detail": "朝鮮の甲午農民戦争に両国が出兵　1895下関条約→三国干渉で遼東半島は清に返還"
+  },
+  {
+    "id": 89,
+    "year": "1898",
+    "year_num": 1898,
+    "content": "アメリカスペイン戦争",
+    "goro": "一ぱい食わせた米西戦",
+    "detail": "パリ条約フィリピンを買収"
+  },
+  {
+    "id": 90,
+    "year": "1899",
+    "year_num": 1899,
+    "content": "南ア戦争",
+    "goro": "わんぱく苦戦のイギリス人",
+    "detail": "ジョゼフチェンバレン　トランスバール共和国とオレンジ自由国"
+  },
+  {
+    "id": 91,
+    "year": "1900",
+    "year_num": 1900,
+    "content": "義和団事件",
+    "goro": "日暮れ恐ろし義和団事件",
+    "detail": "西太后が義和団を支援し列強に宣戦布告　扶清滅洋　日露を中心に８カ国の共同出兵"
+  },
+  {
+    "id": 92,
+    "year": "1902",
+    "year_num": 1902,
+    "content": "日英同盟の成立",
+    "goro": "日暮れに握手日と英",
+    "detail": "露との対立　光栄ある孤立終了　1921四か国条約で破棄"
+  },
+  {
+    "id": 93,
+    "year": "1904",
+    "year_num": 1904,
+    "content": "日露戦争",
+    "goro": "ひとつくれよう露にげんこ",
+    "detail": "セオドアローズヴェルトの調停でポーツマス条約を結ぶ"
+  },
+  {
+    "id": 94,
+    "year": "1905",
+    "year_num": 1905,
+    "content": "血の日曜日事件",
+    "goro": "日暮れごろ事件の起きる日曜日",
+    "detail": "ニコライ２世がヴィッテ起草の十月勅令で、ドゥーマの開設を約束"
+  },
+  {
+    "id": 95,
+    "year": "1906",
+    "year_num": 1906,
+    "content": "国民会議カルカッタ大会",
+    "goro": "ひとつくれろと国民会議",
+    "detail": "ベンガル分割令に反対　ティラクの指導　英貨排斥、スワデーシ、スワラージ、民族教育"
+  },
+  {
+    "id": 96,
+    "year": "1908",
+    "year_num": 1908,
+    "content": "青年トルコ革命",
+    "goro": "日暮れて発展青年トルコ",
+    "detail": "露土戦争で停止していたミドハト憲法復活"
+  },
+  {
+    "id": 97,
+    "year": "1910",
+    "year_num": 1910,
+    "content": "メキシコ革命",
+    "goro": "行く人多いぞ革命へ",
+    "detail": "マデロがディアス独裁政権を打倒　農民指導者サパタらの離反"
+  },
+  {
+    "id": 98,
+    "year": "1911",
+    "year_num": 1911,
+    "content": "辛亥革命",
+    "goro": "得意一番革命起こす",
+    "detail": "孫文の中華民国建国　宣統帝退位＝清の滅亡　袁世凱に臨時大総統を譲る"
+  },
+  {
+    "id": 99,
+    "year": "1914",
+    "year_num": 1914,
+    "content": "第一次世界大戦",
+    "goro": "行く意思ないよ戦場へ",
+    "detail": "サライェボ事件：墺がセルビアに宣戦　ガヴリロプリンツィプ"
+  },
+  {
+    "id": 100,
+    "year": "1915",
+    "year_num": 1915,
+    "content": "二十一か条要求",
+    "goro": "一句一語に日華燃え",
+    "detail": "袁世凱"
+  },
+  {
+    "id": 101,
+    "year": "1917",
+    "year_num": 1917,
+    "content": "ロシア十月革命",
+    "goro": "引く人涙ロマノフ家",
+    "detail": "ボリシェヴィキの蜂起　レーニンがケレンスキー首相の臨時政府を打倒"
+  },
+  {
+    "id": 102,
+    "year": "1918",
+    "year_num": 1918,
+    "content": "ウィルソンの十四か条",
+    "goro": "説く人はウィルソン十四か条",
+    "detail": "レーニンの平和に関する布告に対抗"
+  },
+  {
+    "id": 103,
+    "year": "1919",
+    "year_num": 1919,
+    "content": "ヴェルサイユ条約",
+    "goro": "行く行くパリへ平和の使い",
+    "detail": "五・四運動も同年"
+  },
+  {
+    "id": 104,
+    "year": "1921",
+    "year_num": 1921,
+    "content": "ワシントン会議",
+    "goro": "引くに引かれぬハーディング",
+    "detail": "四か国条約　海軍軍縮条約　九カ国条約"
+  },
+  {
+    "id": 105,
+    "year": "1922",
+    "year_num": 1922,
+    "content": "ソ連設立",
+    "goro": "いい国になるソヴィエト",
+    "detail": "戦時共産主義18~21　NEP~28　第一次五か年計画~32"
+  },
+  {
+    "id": 106,
+    "year": "1923",
+    "year_num": 1923,
+    "content": "トルコ共和国の成立",
+    "goro": "特に見つけた共和国",
+    "detail": "セーヴル条約を破棄してローザンヌ条約を結ぶ　ムスタファケマル（ケマルアタテゥルク）　カリフ制廃止、文字改革"
+  },
+  {
+    "id": 107,
+    "year": "1924",
+    "year_num": 1924,
+    "content": "ドーズ案",
+    "goro": "特に良い案、ドーズ案",
+    "detail": "独の賠償金支払いの軽減と米資本導入"
+  },
+  {
+    "id": 108,
+    "year": "1925",
+    "year_num": 1925,
+    "content": "ロカルノ条約",
+    "goro": "特にご意見あればロカルノで",
+    "detail": "ラインラント非武装化の現状維持→国際連盟への加盟　シュトレーゼマン　五・三〇事件も同年"
+  },
+  {
+    "id": 109,
+    "year": "1926",
+    "year_num": 1926,
+    "content": "北伐の開始",
+    "goro": "幾人向かうか、北伐に",
+    "detail": "蔣介石、打倒軍閥　27上海クーデター　28北伐完了"
+  },
+  {
+    "id": 110,
+    "year": "1928",
+    "year_num": 1928,
+    "content": "不戦条約",
+    "goro": "行くには行くが不戦とは",
+    "detail": "米ケロッグ仏ブリアン"
+  },
+  {
+    "id": 111,
+    "year": "1929",
+    "year_num": 1929,
+    "content": "世界恐慌",
+    "goro": "幾人苦境か大恐慌",
+    "detail": "ニューヨークウォール街"
+  },
+  {
+    "id": 112,
+    "year": "1930",
+    "year_num": 1930,
+    "content": "ロンドン海軍軍縮会議",
+    "goro": "戦ゼロにしようとロンドンへ",
+    "detail": "海軍補助艦、米：英：日＝１０：１０：７"
+  },
+  {
+    "id": 113,
+    "year": "1932",
+    "year_num": 1932,
+    "content": "オタワ英連邦経済会議",
+    "goro": "行くさブロック経済へ",
+    "detail": "1931ウェストミンスター憲章　マクドナルド、スターリングブロック"
+  },
+  {
+    "id": 114,
+    "year": "1933",
+    "year_num": 1933,
+    "content": "ニューディール政策",
+    "goro": "戦見ないでニューディール",
+    "detail": "Fローズヴェルト　AAA、NIRA、TVA"
+  },
+  {
+    "id": 115,
+    "year": "1934",
+    "year_num": 1934,
+    "content": "長征",
+    "goro": "戦しないで大西遷",
+    "detail": "中国共産党；瑞金→延安"
+  },
+  {
+    "id": 116,
+    "year": "1935",
+    "year_num": 1935,
+    "content": "ドイツ、再軍備宣言",
+    "goro": "戦へGO、再軍備宣言",
+    "detail": "ヒトラー　ラインラント進駐、ロカルノ条約破棄(1936)"
+  },
+  {
+    "id": 117,
+    "year": "1936",
+    "year_num": 1936,
+    "content": "スペイン内戦",
+    "goro": "戦むなしい、スペイン内戦",
+    "detail": "フランコvsアサーニャ　英仏は宥和政策"
+  },
+  {
+    "id": 118,
+    "year": "1937",
+    "year_num": 1937,
+    "content": "日中戦争",
+    "goro": "戦長引く日中戦",
+    "detail": "盧溝橋事件　第二次国共合作　汪兆銘を擁立し南京政府樹立"
+  },
+  {
+    "id": 119,
+    "year": "1938",
+    "year_num": 1938,
+    "content": "ミュンヘン会談",
+    "goro": "戦やめようミュンヘンで",
+    "detail": "宥和政策で独のズデーテン併合が認められる"
+  },
+  {
+    "id": 120,
+    "year": "1939",
+    "year_num": 1939,
+    "content": "第二次世界大戦",
+    "goro": "戦苦しい二次大戦",
+    "detail": "独のポーランド侵攻に対し英仏が宣戦"
+  },
+  {
+    "id": 121,
+    "year": "1943",
+    "year_num": 1943,
+    "content": "テヘラン会談",
+    "goro": "行くよ３国テヘラン会談",
+    "detail": "英（チャーチル）米（Fローズヴェルト）ソ（スターリン）　カイロ会談（英米中（蔣介石））も同年　カイロ→テヘラン"
+  },
+  {
+    "id": 122,
+    "year": "1945",
+    "year_num": 1945,
+    "content": "第二次世界大戦終結",
+    "goro": "ひどくしごかれもうごめん",
+    "detail": "ヤルタ会談（米英ソ、ソ連の対日参戦）　ポツダム会談（英（チャーチル→アトリー）米（トルーマン）ソ（スターリン））"
+  },
+  {
+    "id": 123,
+    "year": "1947",
+    "year_num": 1947,
+    "content": "トルーマンドクトリン",
+    "goro": "幾夜泣いたかトルーマン",
+    "detail": "封じ込め政策　冷戦の開始　同年にマーシャルプラン"
+  },
+  {
+    "id": 124,
+    "year": "1948",
+    "year_num": 1948,
+    "content": "第一次中東戦争",
+    "goro": "世は殺し合いむなしい涙の中東戦争",
+    "detail": "イスラエル建国にアラブ連盟諸国が宣戦　イスラエルの勝利　パレスチナ難民"
+  },
+  {
+    "id": 125,
+    "year": "1956",
+    "year_num": 1956,
+    "content": "第二次中東戦争",
+    "goro": "世は殺し合いむなしい涙の中東戦争",
+    "detail": "ナセル（エジプト）のスエズ運河国有化宣言　英仏イスラエルがエジプト侵攻"
+  },
+  {
+    "id": 126,
+    "year": "1967",
+    "year_num": 1967,
+    "content": "第三次中東戦争",
+    "goro": "世は殺し合いむなしい涙の中東戦争",
+    "detail": "エジプトのアカバ湾封鎖に対しイスラエルが奇襲　イスラエルがガザ地区、ヨルダン川西岸、シナイ半島、ゴラン高原を占領　1964にPLO成立"
+  },
+  {
+    "id": 127,
+    "year": "1973",
+    "year_num": 1973,
+    "content": "第四次中東戦争",
+    "goro": "世は殺し合いむなしい涙の中東戦争",
+    "detail": "エジプト、シリア軍が失地回復を目指して侵攻　第一次石油危機"
+  },
+  {
+    "id": 128,
+    "year": "1949",
+    "year_num": 1949,
+    "content": "NATO成立",
+    "goro": "行くよ苦労の納豆や",
+    "detail": "ソ連は47コミンフォルム、49コメコンを結成し対抗"
+  },
+  {
+    "id": 129,
+    "year": "1950",
+    "year_num": 1950,
+    "content": "朝鮮戦争",
+    "goro": "ひどくこまる朝鮮戦争",
+    "detail": "38度線　南：米主体の国連軍　北：中国が支援"
+  },
+  {
+    "id": 130,
+    "year": "1952",
+    "year_num": 1952,
+    "content": "エジプト革命",
+    "goro": "行く子に拍手、エジプト革命",
+    "detail": "ナギブらの自由将校団が起こす　54ナギブを追放しナセルが首相に"
+  },
+  {
+    "id": 131,
+    "year": "1954",
+    "year_num": 1954,
+    "content": "ジュネーヴ会議",
+    "goro": "行く意思あるかジュネーヴへ",
+    "detail": "インドシナ戦争終結　北緯１７度線"
+  },
+  {
+    "id": 132,
+    "year": "1955",
+    "year_num": 1955,
+    "content": "アジアアフリカ会議",
+    "goro": "行くGOGOバンドンへ",
+    "detail": "インドネシアの首都"
+  },
+  {
+    "id": 133,
+    "year": "1956",
+    "year_num": 1956,
+    "content": "スターリン批判",
+    "goro": "ひどくころんだスターリン",
+    "detail": "フルシチョフ　55ジュネーヴ４巨頭会談、雪解け"
+  },
+  {
+    "id": 134,
+    "year": "1958",
+    "year_num": 1958,
+    "content": "EEC発足",
+    "goro": "居食いはするなEEC",
+    "detail": "仏、西独、伊、ベネルクス３国　67EC　73拡大EC"
+  },
+  {
+    "id": 135,
+    "year": "1960",
+    "year_num": 1960,
+    "content": "アフリカの年",
+    "goro": "人、苦労なし、アフリカ独立",
+    "detail": "アフリカで１７カ国が独立を達成"
+  },
+  {
+    "id": 136,
+    "year": "1962",
+    "year_num": 1962,
+    "content": "キューバ危機",
+    "goro": "一苦労、２国は妥協、キューバ危機",
+    "detail": "キューバにソ連ミサイル基地　ケネディ-フルシチョフ"
+  },
+  {
+    "id": 137,
+    "year": "1963",
+    "year_num": 1963,
+    "content": "部分的核実験停止条約",
+    "goro": "ひどく無惨な核実験",
+    "detail": "米英ソの調印、仏中の反発"
+  },
+  {
+    "id": 138,
+    "year": "1965",
+    "year_num": 1965,
+    "content": "ベトナム戦争",
+    "goro": "ひどくむごい、ベトナム戦争",
+    "detail": "北：ベトナム民主共和国（ホーチミン）　南：ゴーディンジェム　ケネディ、ジョンソン、ニクソン"
+  },
+  {
+    "id": 139,
+    "year": "1966",
+    "year_num": 1966,
+    "content": "文化大革命",
+    "goro": "一句朗々と毛沢東",
+    "detail": "林彪と結び、劉少奇、鄧小平らを失脚させる"
+  },
+  {
+    "id": 140,
+    "year": "1979",
+    "year_num": 1979,
+    "content": "イラン革命",
+    "goro": "人の苦なくすとホメイニ師",
+    "detail": "米と結んだパフレヴィー朝が倒れる　シーア派　80イランイラク戦争"
+  },
+  {
+    "id": 141,
+    "year": "1987",
+    "year_num": 1987,
+    "content": "ペレストロイカ",
+    "goro": "人、苦はなくなるペレストロイカ",
+    "detail": "ゴルバチョフによる自由化、民主化政策　88アフガニスタン撤兵"
+  }
+];
+
+// アプリケーション状態
+const state = {
+  items: [],              // 全年号データ
+  mode: 'all',            // 'all' | 'wrong' | 'starred' | 'list'
+  currentIndex: 0,        // 現在の問題インデックス
+  activeQueue: [],        // 現在の出題リスト
+  currentQuestion: null,  // 現在の問題オブジェクト
+  isAnswered: false,      // 回答済みかどうか
+  
+  // ユーザー成績・履歴 (localStorageで保存)
+  wrongIds: new Set(),    // 間違えた問題のID
+  starredIds: new Set(),  // チェックした問題のID
+  stats: {
+    answered: 0,
+    correct: 0,
+    wrong: 0
+  },
+
+  // 設定 (localStorageで保存)
+  settings: {
+    yearMin: -3000,
+    yearMax: 3000,
+    sortOrder: 'random',  // 'random' | 'year_asc' | 'year_desc' | 'original'
+    soundEnabled: true,
+    darkMode: false
+  },
+
+  serverInfo: null
+};
+
+// Web Audio API による効果音再生
+const Sound = {
+  ctx: null,
+  init() {
+    if (!this.ctx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) this.ctx = new AudioContext();
+    }
+  },
+  playTone(freq, type, duration, delay = 0) {
+    if (!state.settings.soundEnabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    setTimeout(() => {
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+      } catch (e) {
+        // Audio policy ignore
+      }
+    }, delay * 1000);
+  },
+  correct() {
+    // 軽快なピンポン音 (C5 -> G5)
+    this.playTone(523.25, 'sine', 0.15, 0);
+    this.playTone(783.99, 'sine', 0.35, 0.12);
+  },
+  wrong() {
+    // 低音ブブー音
+    this.playTone(220, 'triangle', 0.2, 0);
+    this.playTone(196, 'triangle', 0.3, 0.15);
+  }
+};
+
+// DOM要素の参照
+const dom = {};
+
+function initDom() {
+  dom.dataStatusText = document.getElementById('dataStatusText');
+  dom.btnMobileQr = document.getElementById('btnMobileQr');
+  dom.btnSettings = document.getElementById('btnSettings');
+  dom.btnToggleTheme = document.getElementById('btnToggleTheme');
+  dom.modeTabs = document.querySelectorAll('.mode-tab');
+  
+  dom.badgeAllCount = document.getElementById('badgeAllCount');
+  dom.badgeWrongCount = document.getElementById('badgeWrongCount');
+  dom.badgeStarredCount = document.getElementById('badgeStarredCount');
+
+  dom.quizView = document.getElementById('quizView');
+  dom.listView = document.getElementById('listView');
+  dom.mobileNumpad = document.getElementById('mobileNumpad');
+
+  dom.quizModeBadge = document.getElementById('quizModeBadge');
+  dom.progressText = document.getElementById('progressText');
+  dom.scoreText = document.getElementById('scoreText');
+  dom.progressBar = document.getElementById('progressBar');
+  dom.btnRestartQuiz = document.getElementById('btnRestartQuiz');
+
+  dom.questionCard = document.getElementById('questionCard');
+  dom.btnToggleStar = document.getElementById('btnToggleStar');
+  dom.questionContent = document.getElementById('questionContent');
+
+  dom.inputSection = document.getElementById('inputSection');
+  dom.answerInput = document.getElementById('answerInput');
+  dom.btnInputClear = document.getElementById('btnInputClear');
+  dom.btnSubmitAnswer = document.getElementById('btnSubmitAnswer');
+  dom.btnPassAnswer = document.getElementById('btnPassAnswer');
+
+  dom.resultSection = document.getElementById('resultSection');
+  dom.resultBanner = document.getElementById('resultBanner');
+  dom.resultIcon = document.getElementById('resultIcon');
+  dom.clearedBadge = document.getElementById('clearedBadge');
+  dom.resultTargetYear = document.getElementById('resultTargetYear');
+  dom.userAnswerComparison = document.getElementById('userAnswerComparison');
+  dom.resultGoro = document.getElementById('resultGoro');
+  dom.resultDetail = document.getElementById('resultDetail');
+  dom.btnNextQuestion = document.getElementById('btnNextQuestion');
+
+  dom.finishedCard = document.getElementById('finishedCard');
+  dom.finishedIcon = document.getElementById('finishedIcon');
+  dom.finishedTitle = document.getElementById('finishedTitle');
+  dom.finishedDesc = document.getElementById('finishedDesc');
+  dom.finishedTotal = document.getElementById('finishedTotal');
+  dom.finishedCorrect = document.getElementById('finishedCorrect');
+  dom.finishedWrong = document.getElementById('finishedWrong');
+  dom.btnRestartFromFinished = document.getElementById('btnRestartFromFinished');
+  dom.btnSwitchToWrongMode = document.getElementById('btnSwitchToWrongMode');
+
+  dom.listSearchInput = document.getElementById('listSearchInput');
+  dom.listContainer = document.getElementById('listContainer');
+  dom.listCountText = document.getElementById('listCountText');
+  dom.btnReloadExcel = document.getElementById('btnReloadExcel');
+
+  dom.settingsModal = document.getElementById('settingsModal');
+  dom.settingYearMin = document.getElementById('settingYearMin');
+  dom.settingYearMax = document.getElementById('settingYearMax');
+  dom.settingSound = document.getElementById('settingSound');
+  dom.btnSaveSettings = document.getElementById('btnSaveSettings');
+  dom.excelFileInput = document.getElementById('excelFileInput');
+  dom.btnResetWrongList = document.getElementById('btnResetWrongList');
+  dom.btnResetStarredList = document.getElementById('btnResetStarredList');
+
+  dom.mobileModal = document.getElementById('mobileModal');
+  dom.qrContainer = document.getElementById('qrContainer');
+  dom.mobileUrlText = document.getElementById('mobileUrlText');
+  dom.btnCopyMobileUrl = document.getElementById('btnCopyMobileUrl');
+}
+
+// ==========================================
+// データの永続化 (localStorage)
+// ==========================================
+function loadSavedState() {
+  try {
+    const savedWrong = localStorage.getItem('history_wrong_ids');
+    if (savedWrong) state.wrongIds = new Set(JSON.parse(savedWrong));
+
+    const savedStarred = localStorage.getItem('history_starred_ids');
+    if (savedStarred) state.starredIds = new Set(JSON.parse(savedStarred));
+
+    const savedSettings = localStorage.getItem('history_settings');
+    if (savedSettings) state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
+
+    const cachedItems = localStorage.getItem('history_cached_items');
+    if (cachedItems) {
+      state.items = JSON.parse(cachedItems);
+    } else {
+      state.items = [...DEFAULT_ITEMS];
+    }
+  } catch (e) {
+    console.error('Failed to load localStorage', e);
+    state.items = [...DEFAULT_ITEMS];
+  }
+}
+
+function saveUserState() {
+  try {
+    localStorage.setItem('history_wrong_ids', JSON.stringify([...state.wrongIds]));
+    localStorage.setItem('history_starred_ids', JSON.stringify([...state.starredIds]));
+    localStorage.setItem('history_settings', JSON.stringify(state.settings));
+  } catch (e) {
+    console.error('Failed to save to localStorage', e);
+  }
+}
+
+function saveCachedItems() {
+  try {
+    localStorage.setItem('history_cached_items', JSON.stringify(state.items));
+  } catch (e) {
+    console.error('Failed to cache items', e);
+  }
+}
+
+// ==========================================
+// データの読み込み (API & 手動Excel)
+// ==========================================
+async function fetchServerData() {
+  dom.dataStatusText.textContent = 'Excelデータ確認中...';
+  try {
+    const res = await fetch('/api/data?t=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        state.items = data.items;
+        saveCachedItems();
+        dom.dataStatusText.textContent = `Excel連携中 (${state.items.length}問)`;
+        updateBadges();
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn('APIサーバーに接続できません。ローカルキャッシュを使用します。');
+  }
+
+  // サーバー未接続またはデータなし
+  dom.dataStatusText.textContent = `オフライン/保存データ (${state.items.length}問)`;
+  updateBadges();
+  return false;
+}
+
+async function fetchServerInfo() {
+  try {
+    const res = await fetch('/api/info');
+    if (res.ok) {
+      state.serverInfo = await res.json();
+    }
+  } catch (e) {
+    // オフライン
+  }
+}
+
+// SheetJSによるブラウザ上での直接Excelパース
+function handleExcelUpload(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const parsedItems = [];
+      let startRow = 0;
+      if (json.length > 0 && (String(json[0][0] || '').includes('年') || String(json[0][1] || '').includes('内容'))) {
+        startRow = 1;
+      }
+
+      for (let i = startRow; i < json.length; i++) {
+        const row = json[i];
+        if (!row || row.length === 0) continue;
+        const year = String(row[0] || '').trim();
+        const content = String(row[1] || '').trim();
+        const goro = String(row[2] || '').trim();
+        const detail = String(row[3] || '').trim();
+
+        if (!year && !content) continue;
+
+        parsedItems.push({
+          id: i,
+          year: year,
+          year_num: parseYearNumber(year),
+          content: content,
+          goro: goro,
+          detail: detail
+        });
+      }
+
+      if (parsedItems.length > 0) {
+        state.items = parsedItems;
+        saveCachedItems();
+        updateBadges();
+        alert(`Excelファイルを読み込みました！ (${parsedItems.length}問)`);
+        closeModals();
+        startQuizSession();
+        if (state.mode === 'list') renderList();
+      } else {
+        alert('有効なデータが見つかりませんでした。列の並びをご確認ください。');
+      }
+    } catch (err) {
+      alert('Excelの読み込みに失敗しました: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseYearNumber(yearStr) {
+  if (!yearStr) return 0;
+  let s = String(yearStr).trim();
+  const isBc = s.includes('前') || s.toUpperCase().includes('BC') || s.startsWith('-');
+  s = s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  const m = s.match(/\d+/);
+  if (m) {
+    const val = parseInt(m[0], 10);
+    return isBc ? -val : val;
+  }
+  return 0;
+}
+
+// ==========================================
+// 正誤判定ロジック
+// ==========================================
+function normalizeYearInput(str) {
+  if (!str) return '';
+  let s = String(str).trim();
+  // 全角数字を半角に変換
+  s = s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  // 全角アルファベット・ハイフンなどを半角に
+  s = s.replace(/[−ー―－]/g, '-');
+  s = s.replace(/[\s\u3000]/g, ''); // 空白除去
+  return s;
+}
+
+function checkAnswerCorrectness(userRaw, targetRaw) {
+  const user = normalizeYearInput(userRaw);
+  const target = normalizeYearInput(targetRaw);
+
+  // 完全一致
+  if (user === target) return true;
+
+  // 数値化・紀元前判定での一致比較
+  const userNum = parseYearNumber(user);
+  const targetNum = parseYearNumber(target);
+
+  if (userNum !== 0 && targetNum !== 0 && userNum === targetNum) {
+    return true;
+  }
+
+  // 紀元前表記の柔軟チェック (例: target「前202」 vs user「-202」または「202前」)
+  const isUserBc = user.includes('前') || user.toUpperCase().includes('BC') || user.startsWith('-');
+  const isTargetBc = target.includes('前') || target.toUpperCase().includes('BC') || target.startsWith('-');
+
+  if (isUserBc === isTargetBc) {
+    const uDigits = user.replace(/\D/g, '');
+    const tDigits = target.replace(/\D/g, '');
+    if (uDigits && tDigits && uDigits === tDigits) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ==========================================
+// 出題セッション管理
+// ==========================================
+function updateBadges() {
+  dom.badgeAllCount.textContent = state.items.length;
+  dom.badgeWrongCount.textContent = state.wrongIds.size;
+  dom.badgeStarredCount.textContent = state.starredIds.size;
+}
+
+function filterAndSortItems() {
+  let pool = [];
+
+  if (state.mode === 'all') {
+    pool = [...state.items];
+  } else if (state.mode === 'wrong') {
+    pool = state.items.filter(item => state.wrongIds.has(item.id));
+  } else if (state.mode === 'starred') {
+    pool = state.items.filter(item => state.starredIds.has(item.id));
+  }
+
+  // 年代範囲フィルター
+  const min = parseInt(state.settings.yearMin, 10) || -3000;
+  const max = parseInt(state.settings.yearMax, 10) || 3000;
+  pool = pool.filter(item => item.year_num >= min && item.year_num <= max);
+
+  // ソート
+  if (state.settings.sortOrder === 'random') {
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+  } else if (state.settings.sortOrder === 'year_asc') {
+    pool.sort((a, b) => a.year_num - b.year_num);
+  } else if (state.settings.sortOrder === 'year_desc') {
+    pool.sort((a, b) => b.year_num - a.year_num);
+  } else if (state.settings.sortOrder === 'original') {
+    pool.sort((a, b) => a.id - b.id);
+  }
+
+  return pool;
+}
+
+function startQuizSession() {
+  state.activeQueue = filterAndSortItems();
+  state.currentIndex = 0;
+  state.stats = { answered: 0, correct: 0, wrong: 0 };
+  state.isAnswered = false;
+
+  updateModeUI();
+  updateProgressUI();
+
+  if (state.activeQueue.length === 0) {
+    showFinishedScreen(true);
+    return;
+  }
+
+  dom.finishedCard.classList.add('hidden');
+  dom.questionCard.classList.remove('hidden');
+  loadQuestion(0);
+}
+
+function updateModeUI() {
+  dom.modeTabs.forEach(tab => {
+    if (tab.dataset.mode === state.mode) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+
+  const modeLabels = {
+    all: '全問モード',
+    wrong: '間違えた問題（特訓）',
+    starred: 'チェック問題',
+    list: '年号一覧'
+  };
+  dom.quizModeBadge.textContent = modeLabels[state.mode] || 'クイズ';
+
+  if (state.mode === 'wrong') {
+    dom.quizModeBadge.className = 'font-bold px-2 py-0.5 rounded text-[11px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300';
+  } else if (state.mode === 'starred') {
+    dom.quizModeBadge.className = 'font-bold px-2 py-0.5 rounded text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
+  } else {
+    dom.quizModeBadge.className = 'font-bold px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+  }
+}
+
+function updateProgressUI() {
+  const total = state.activeQueue.length;
+  const current = total === 0 ? 0 : Math.min(state.currentIndex + 1, total);
+  dom.progressText.textContent = `問題 ${current} / ${total}`;
+
+  const pct = total === 0 ? 0 : (state.stats.answered / total) * 100;
+  dom.progressBar.style.width = `${pct}%`;
+
+  const acc = state.stats.answered === 0 ? 0 : Math.round((state.stats.correct / state.stats.answered) * 100);
+  dom.scoreText.textContent = `正答率: ${acc}%`;
+}
+
+function loadQuestion(index) {
+  if (index >= state.activeQueue.length) {
+    showFinishedScreen(false);
+    return;
+  }
+
+  state.currentIndex = index;
+  state.currentQuestion = state.activeQueue[index];
+  state.isAnswered = false;
+
+  // UIリセット
+  dom.questionContent.textContent = state.currentQuestion.content;
+  dom.answerInput.value = '';
+  dom.inputSection.classList.remove('hidden');
+  dom.resultSection.classList.add('hidden');
+  dom.clearedBadge.classList.add('hidden');
+
+  // 星（チェック）状態
+  updateStarIcon(state.starredIds.has(state.currentQuestion.id));
+
+  // モバイルテンキー表示
+  dom.mobileNumpad.classList.remove('hidden');
+
+  // アニメーション
+  dom.questionCard.classList.remove('animate-shake', 'animate-pop');
+  void dom.questionCard.offsetWidth; // reflow
+  dom.questionCard.classList.add('animate-pop');
+
+  updateProgressUI();
+
+  // PCでは入力欄に自動フォーカス
+  if (window.innerWidth > 640) {
+    setTimeout(() => dom.answerInput.focus(), 50);
+  }
+}
+
+function updateStarIcon(isStarred) {
+  if (isStarred) {
+    dom.btnToggleStar.className = 'absolute top-4 right-4 p-2 text-amber-500 hover:text-amber-600 transition';
+    dom.btnToggleStar.innerHTML = '<i data-lucide="star" class="w-6 h-6 fill-amber-500 text-amber-500"></i>';
+  } else {
+    dom.btnToggleStar.className = 'absolute top-4 right-4 p-2 text-slate-300 dark:text-slate-600 hover:text-amber-400 transition';
+    dom.btnToggleStar.innerHTML = '<i data-lucide="star" class="w-6 h-6"></i>';
+  }
+  lucide.createIcons();
+}
+
+function toggleStarCurrent() {
+  if (!state.currentQuestion) return;
+  const id = state.currentQuestion.id;
+  if (state.starredIds.has(id)) {
+    state.starredIds.delete(id);
+  } else {
+    state.starredIds.add(id);
+  }
+  saveUserState();
+  updateBadges();
+  updateStarIcon(state.starredIds.has(id));
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatDetailHtml(detailText) {
+  if (!detailText || !detailText.trim()) {
+    return '<div class="text-xs text-slate-400 italic">（詳細解説はありません）</div>';
+  }
+  // 全角スペース、半角の複数スペース、改行で区切る
+  const parts = detailText.split(/[\u3000\n]+|\s{2,}/).map(s => s.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    return parts.map(p => `
+      <div class="flex items-start gap-2.5 py-0.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 mt-2 shrink-0"></span>
+        <span class="text-slate-800 dark:text-slate-100 font-medium">${escapeHtml(p)}</span>
+      </div>
+    `).join('');
+  }
+  return `<div class="font-medium text-slate-800 dark:text-slate-100">${escapeHtml(detailText)}</div>`;
+}
+
+// ==========================================
+// 解答の判定と解説表示
+// ==========================================
+let isTransitioning = false; // 二重実行防止フラグ
+
+function submitAnswer(isPass = false) {
+  if (state.isAnswered || !state.currentQuestion || isTransitioning) return;
+  isTransitioning = true;
+
+  const inputVal = isPass ? '' : dom.answerInput.value.trim();
+  const isCorrect = !isPass && checkAnswerCorrectness(inputVal, state.currentQuestion.year);
+
+  state.isAnswered = true;
+  state.stats.answered++;
+
+  const q = state.currentQuestion;
+
+  if (isCorrect) {
+    state.stats.correct++;
+    Sound.correct();
+
+    dom.resultBanner.className = 'p-4 rounded-2xl flex items-center justify-between bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 text-emerald-950 dark:text-emerald-100';
+    dom.resultIcon.textContent = '⭕';
+    dom.resultTargetYear.className = 'text-3xl sm:text-4xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400';
+
+    dom.userAnswerComparison.textContent = '';
+    dom.userAnswerComparison.className = 'hidden';
+
+    // 【要件】間違えた問題モードで正解した場合、次回から除外する
+    if (state.mode === 'wrong' && state.wrongIds.has(q.id)) {
+      state.wrongIds.delete(q.id);
+      saveUserState();
+      updateBadges();
+      dom.clearedBadge.classList.remove('hidden');
+    }
+  } else {
+    state.stats.wrong++;
+    Sound.wrong();
+
+    // 間違えた問題リストに追加
+    state.wrongIds.add(q.id);
+    saveUserState();
+    updateBadges();
+
+    dom.resultBanner.className = 'p-4 rounded-2xl flex items-center justify-between bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 text-rose-950 dark:text-rose-100';
+    dom.resultIcon.textContent = isPass ? '💡' : '❌';
+    dom.resultTargetYear.className = 'text-3xl sm:text-4xl font-extrabold tracking-tight text-rose-600 dark:text-rose-400';
+
+    dom.userAnswerComparison.textContent = inputVal ? `入力: ${inputVal}` : 'パス';
+    dom.userAnswerComparison.className = 'text-xs text-rose-500 dark:text-rose-400 font-medium bg-rose-500/10 px-2 py-0.5 rounded-full';
+    dom.clearedBadge.classList.add('hidden');
+
+    // シェイク演出
+    dom.questionCard.classList.add('animate-shake');
+  }
+
+  // ①正解年号・③語呂合わせ・④詳細解説をすべて画面に反映
+  dom.resultTargetYear.textContent = q.year;
+  dom.resultGoro.textContent = q.goro || '（語呂合わせはありません）';
+  dom.resultDetail.innerHTML = formatDetailHtml(q.detail);
+
+  // 入力欄を隠し、解説を表示
+  dom.inputSection.classList.add('hidden');
+  dom.resultSection.classList.remove('hidden');
+
+  // モバイルテンキーを隠す
+  dom.mobileNumpad.classList.add('hidden');
+
+  updateProgressUI();
+  lucide.createIcons();
+
+  // スマホで解答画面が押し出された場合に備えてスムーズにスクロール
+  if (window.innerWidth <= 640) {
+    setTimeout(() => {
+      dom.resultBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  } else {
+    // PCでは「次の問題へ進む」ボタンにフォーカスを当ててEnter/Spaceで進めるようにする
+    setTimeout(() => {
+      dom.btnNextQuestion.focus();
+    }, 50);
+  }
+
+  // ガード解除
+  setTimeout(() => {
+    isTransitioning = false;
+  }, 250);
+}
+
+function nextQuestion() {
+  if (!state.isAnswered || isTransitioning) return;
+  isTransitioning = true;
+  loadQuestion(state.currentIndex + 1);
+  setTimeout(() => {
+    isTransitioning = false;
+  }, 200);
+}
+
+function showFinishedScreen(isEmpty = false) {
+  dom.questionCard.classList.add('hidden');
+  dom.mobileNumpad.classList.add('hidden');
+  dom.finishedCard.classList.remove('hidden');
+
+  if (isEmpty) {
+    if (dom.finishedIcon) dom.finishedIcon.textContent = '🔍';
+    if (state.mode === 'wrong') {
+      dom.finishedTitle.textContent = '間違えた問題はありません';
+      dom.finishedDesc.textContent = 'すべての問題をマスターしています！';
+    } else if (state.mode === 'starred') {
+      dom.finishedTitle.textContent = 'チェックした問題はありません';
+      dom.finishedDesc.textContent = '問題の右上にある★アイコンを押すと追加されます。';
+    } else {
+      dom.finishedTitle.textContent = '該当する問題がありません';
+      dom.finishedDesc.textContent = '出題設定で年代の範囲などを確認してください。';
+    }
+    if (dom.finishedTotal) dom.finishedTotal.textContent = '0';
+    if (dom.finishedCorrect) dom.finishedCorrect.textContent = '0';
+    if (dom.finishedWrong) dom.finishedWrong.textContent = '0';
+    if (dom.btnSwitchToWrongMode) dom.btnSwitchToWrongMode.classList.add('hidden');
+  } else {
+    if (dom.finishedIcon) dom.finishedIcon.textContent = '🎉';
+    dom.finishedTitle.textContent = '学習完了！';
+    const total = state.stats.answered;
+    const correct = state.stats.correct;
+    const wrong = state.stats.wrong;
+    const acc = total > 0 ? Math.round((correct / total) * 100) : 0;
+    dom.finishedDesc.textContent = `正答率 ${acc}%`;
+    if (dom.finishedTotal) dom.finishedTotal.textContent = String(total);
+    if (dom.finishedCorrect) dom.finishedCorrect.textContent = String(correct);
+    if (dom.finishedWrong) dom.finishedWrong.textContent = String(wrong);
+
+    if (state.wrongIds.size > 0 && state.mode !== 'wrong') {
+      if (dom.btnSwitchToWrongMode) {
+        dom.btnSwitchToWrongMode.classList.remove('hidden');
+        dom.btnSwitchToWrongMode.textContent = `間違えた問題 (${state.wrongIds.size}問) を特訓`;
+      }
+    } else {
+      if (dom.btnSwitchToWrongMode) {
+        dom.btnSwitchToWrongMode.classList.add('hidden');
+      }
+    }
+  }
+}
+
+// ==========================================
+// 年号一覧・単語帳画面
+// ==========================================
+function renderList() {
+  const query = (dom.listSearchInput.value || '').trim().toLowerCase();
+  dom.listContainer.innerHTML = '';
+
+  let list = [...state.items];
+  if (query) {
+    list = list.filter(item => 
+      String(item.year).toLowerCase().includes(query) ||
+      (item.content && item.content.toLowerCase().includes(query)) ||
+      (item.goro && item.goro.toLowerCase().includes(query)) ||
+      (item.detail && item.detail.toLowerCase().includes(query))
+    );
+  }
+
+  // 年代順にソートして見やすく
+  list.sort((a, b) => a.year_num - b.year_num);
+
+  dom.listCountText.textContent = `表示中: ${list.length} / 全 ${state.items.length} 件`;
+
+  if (list.length === 0) {
+    dom.listContainer.innerHTML = `
+      <div class="text-center py-12 text-slate-400">
+        検索条件に一致する年号がありません
+      </div>
+    `;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  list.forEach(item => {
+    const isStarred = state.starredIds.has(item.id);
+    const isWrong = state.wrongIds.has(item.id);
+
+    const card = document.createElement('div');
+    card.className = 'bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm transition hover:border-slate-300 dark:hover:border-slate-600 flex flex-col gap-2 relative';
+    
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">
+            ${item.year}年
+          </span>
+          <span class="text-base font-bold text-slate-800 dark:text-white">
+            ${item.content}
+          </span>
+        </div>
+        <div class="flex items-center gap-1">
+          ${isWrong ? '<span class="text-[10px] bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300 font-bold px-1.5 py-0.5 rounded">要復習</span>' : ''}
+          <button class="list-star-btn p-1.5 transition text-slate-300 hover:text-amber-400" data-id="${item.id}" title="チェック">
+            <i data-lucide="star" class="w-5 h-5 ${isStarred ? 'fill-amber-500 text-amber-500' : ''}"></i>
+          </button>
+        </div>
+      </div>
+
+      ${item.goro ? `
+        <div class="text-sm font-semibold text-amber-900 dark:text-amber-200 bg-amber-500/[0.08] dark:bg-amber-500/[0.12] px-3 py-1.5 rounded-xl border border-amber-500/20">
+          💡 ${escapeHtml(item.goro)}
+        </div>
+      ` : ''}
+
+      ${item.detail ? `
+        <div class="text-xs text-slate-700 dark:text-slate-300 pl-1 leading-relaxed space-y-1">
+          ${formatDetailHtml(item.detail)}
+        </div>
+      ` : ''}
+    `;
+
+    fragment.appendChild(card);
+  });
+
+  dom.listContainer.appendChild(fragment);
+
+  // 一覧内のスターボタンイベント登録
+  dom.listContainer.querySelectorAll('.list-star-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.id, 10);
+      if (state.starredIds.has(id)) {
+        state.starredIds.delete(id);
+      } else {
+        state.starredIds.add(id);
+      }
+      saveUserState();
+      updateBadges();
+      renderList();
+    });
+  });
+
+  lucide.createIcons();
+}
+
+// ==========================================
+// モーダル操作 (設定 & スマホQR)
+// ==========================================
+function openSettingsModal() {
+  dom.settingYearMin.value = state.settings.yearMin;
+  dom.settingYearMax.value = state.settings.yearMax;
+  dom.settingSound.checked = state.settings.soundEnabled;
+
+  const radio = document.querySelector(`input[name="sortOrder"][value="${state.settings.sortOrder}"]`);
+  if (radio) radio.checked = true;
+
+  dom.settingsModal.classList.remove('hidden');
+}
+
+function openMobileModal() {
+  dom.qrContainer.innerHTML = '';
+
+  let targetUrl = window.location.href;
+  if (state.serverInfo && state.serverInfo.ip && state.serverInfo.ip !== '127.0.0.1') {
+    targetUrl = `http://${state.serverInfo.ip}:${state.serverInfo.port || 8000}`;
+  }
+
+  dom.mobileUrlText.textContent = targetUrl;
+
+  try {
+    new QRCode(dom.qrContainer, {
+      text: targetUrl,
+      width: 176,
+      height: 176,
+      colorDark: "#0f172a",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch (e) {
+    dom.qrContainer.textContent = targetUrl;
+  }
+
+  dom.mobileModal.classList.remove('hidden');
+}
+
+function closeModals() {
+  dom.settingsModal.classList.add('hidden');
+  dom.mobileModal.classList.add('hidden');
+}
+
+// ==========================================
+// イベントリスナー登録
+// ==========================================
+function setupEventListeners() {
+  // モードタブ切り替え
+  dom.modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetMode = tab.dataset.mode;
+      state.mode = targetMode;
+
+      if (targetMode === 'list') {
+        dom.quizView.classList.add('hidden');
+        dom.listView.classList.remove('hidden');
+        dom.mobileNumpad.classList.add('hidden');
+        updateModeUI();
+        renderList();
+      } else {
+        dom.listView.classList.add('hidden');
+        dom.quizView.classList.remove('hidden');
+        startQuizSession();
+      }
+    });
+  });
+
+  // 解答判定ボタン
+  dom.btnSubmitAnswer.addEventListener('click', () => submitAnswer(false));
+  dom.btnPassAnswer.addEventListener('click', () => submitAnswer(true));
+
+  // 次の問題へ
+  dom.btnNextQuestion.addEventListener('click', nextQuestion);
+
+  // チェックトグル
+  dom.btnToggleStar.addEventListener('click', toggleStarCurrent);
+
+  // 再挑戦
+  dom.btnRestartQuiz.addEventListener('click', startQuizSession);
+  dom.btnRestartFromFinished.addEventListener('click', startQuizSession);
+  dom.btnSwitchToWrongMode.addEventListener('click', () => {
+    state.mode = 'wrong';
+    startQuizSession();
+  });
+
+  // 入力欄のEnterキー操作（バブリング抑止）
+  dom.answerInput.addEventListener('keydown', (e) => {
+    // IME変換確定のEnterは無視
+    if (e.isComposing || e.keyCode === 229) {
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      submitAnswer(false);
+    }
+  });
+
+  // グローバルショートカット (PCキーボード)
+  window.addEventListener('keydown', (e) => {
+    // モーダルが開いている場合はショートカットを無効化
+    if (!dom.settingsModal.classList.contains('hidden') || !dom.mobileModal.classList.contains('hidden')) {
+      return;
+    }
+    // 一覧画面表示中は無効化
+    if (state.mode === 'list') return;
+
+    // IME変換中のキーは無視
+    if (e.isComposing || e.keyCode === 229) {
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!state.isAnswered) {
+        submitAnswer(false);
+      } else {
+        nextQuestion();
+      }
+      return;
+    }
+
+    if (state.isAnswered) {
+      // 回答後の操作
+      if (e.code === 'Space') {
+        e.preventDefault();
+        nextQuestion();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        toggleStarCurrent();
+      }
+    } else {
+      // 未回答時の操作
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        submitAnswer(true); // パス
+      } else if (/^[0-9]$/.test(e.key) && document.activeElement !== dom.answerInput) {
+        // 入力欄にフォーカスがない状態で数字が押されたら自動フォーカス
+        dom.answerInput.focus();
+      }
+    }
+  });
+
+  // モバイルカスタムテンキー操作
+  dom.mobileNumpad.addEventListener('click', (e) => {
+    const btn = e.target.closest('.numpad-btn');
+    if (!btn) return;
+
+    const val = btn.dataset.val;
+    const action = btn.dataset.action;
+
+    if (val !== undefined) {
+      dom.answerInput.value += val;
+    } else if (action === 'backspace') {
+      dom.answerInput.value = dom.answerInput.value.slice(0, -1);
+    } else if (action === 'clear') {
+      dom.answerInput.value = '';
+    } else if (action === 'bc') {
+      // 紀元前 (前) のトグル
+      let cur = dom.answerInput.value;
+      if (cur.startsWith('前') || cur.startsWith('-')) {
+        dom.answerInput.value = cur.replace(/^[前\-]/, '');
+      } else {
+        dom.answerInput.value = '前' + cur;
+      }
+    } else if (action === 'submit') {
+      submitAnswer(false);
+    }
+  });
+
+  // テーマ切り替え
+  dom.btnToggleTheme.addEventListener('click', () => {
+    state.settings.darkMode = !state.settings.darkMode;
+    document.documentElement.classList.toggle('dark', state.settings.darkMode);
+    saveUserState();
+  });
+
+  // 設定ボタン
+  dom.btnSettings.addEventListener('click', openSettingsModal);
+
+  // プリセットボタン
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dom.settingYearMin.value = btn.dataset.min;
+      dom.settingYearMax.value = btn.dataset.max;
+    });
+  });
+
+  // 設定保存
+  dom.btnSaveSettings.addEventListener('click', () => {
+    state.settings.yearMin = parseInt(dom.settingYearMin.value, 10) || -3000;
+    state.settings.yearMax = parseInt(dom.settingYearMax.value, 10) || 3000;
+    state.settings.soundEnabled = dom.settingSound.checked;
+
+    const selectedSort = document.querySelector('input[name="sortOrder"]:checked');
+    if (selectedSort) state.settings.sortOrder = selectedSort.value;
+
+    saveUserState();
+    closeModals();
+    startQuizSession();
+  });
+
+  // 履歴リセットボタン
+  dom.btnResetWrongList.addEventListener('click', () => {
+    if (confirm('間違えた問題の履歴をすべてリセットしますか？')) {
+      state.wrongIds.clear();
+      saveUserState();
+      updateBadges();
+      alert('リセットしました。');
+    }
+  });
+
+  dom.btnResetStarredList.addEventListener('click', () => {
+    if (confirm('チェックをすべて解除しますか？')) {
+      state.starredIds.clear();
+      saveUserState();
+      updateBadges();
+      alert('解除しました。');
+    }
+  });
+
+  // 手動Excelアップロード
+  dom.excelFileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleExcelUpload(e.target.files[0]);
+    }
+  });
+
+  // Excel再読み込みボタン (一覧画面)
+  dom.btnReloadExcel.addEventListener('click', async () => {
+    dom.btnReloadExcel.classList.add('animate-spin');
+    const ok = await fetchServerData();
+    dom.btnReloadExcel.classList.remove('animate-spin');
+    if (ok) {
+      alert(`最新のExcelデータを読み込みました！ (${state.items.length}件)`);
+    } else {
+      alert(`サーバー上の最新データを取得できませんでした。`);
+    }
+    renderList();
+  });
+
+  // スマホQRボタン
+  dom.btnMobileQr.addEventListener('click', openMobileModal);
+
+  // URLコピーボタン
+  dom.btnCopyMobileUrl.addEventListener('click', () => {
+    const text = dom.mobileUrlText.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      alert('URLをコピーしました！ スマホのブラウザに貼り付けて開けます。');
+    });
+  });
+
+  // モーダル閉じるボタン
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', closeModals);
+  });
+
+  // モーダル背景クリックで閉じる
+  [dom.settingsModal, dom.mobileModal].forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModals();
+    });
+  });
+
+  // 一覧検索入力
+  dom.listSearchInput.addEventListener('input', () => {
+    renderList();
+  });
+}
+
+// ==========================================
+// アプリ初期化
+// ==========================================
+async function initApp() {
+  initDom();
+  loadSavedState();
+
+  // テーマ適用
+  if (state.settings.darkMode) {
+    document.documentElement.classList.add('dark');
+  }
+
+  setupEventListeners();
+
+  // サーバーからのデータ取得とサーバー情報の取得
+  await Promise.all([
+    fetchServerData(),
+    fetchServerInfo()
+  ]);
+
+  // アイコン描画
+  lucide.createIcons();
+
+  // クイズセッション開始
+  startQuizSession();
+}
+
+// ページロード完了時に起動
+window.addEventListener('DOMContentLoaded', initApp);
+
+
+</script>
+  <script>
+    // Service Worker の登録 (外出先・オフライン対応)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('ServiceWorker registered:', reg.scope))
+          .catch(err => console.log('ServiceWorker error:', err));
+      });
+    }
+  </script>
+</body>
+</html>
